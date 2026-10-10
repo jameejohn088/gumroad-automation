@@ -8,6 +8,7 @@ import com.gumroadautomation.data.repository.AccountRepository
 import com.gumroadautomation.data.repository.AuthRepository
 import com.gumroadautomation.data.repository.OpsRepository
 import com.gumroadautomation.util.ApiResult
+import com.gumroadautomation.util.GistUrlFetcher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,15 +57,23 @@ class SessionViewModel @Inject constructor(
             }
         }
         if (_isLoggedIn.value) {
-            refreshAccounts()
-            refreshUnread()
+            // Pick up a rotated tunnel URL before any API call, so the app
+            // never shows "disconnected" after a rotation.
+            viewModelScope.launch {
+                GistUrlFetcher.refresh(sessionManager)
+                refreshAccounts()
+                refreshUnread()
+            }
         }
     }
 
     fun onLoginSuccess() {
         _isLoggedIn.value = true
-        refreshAccounts()
-        refreshUnread()
+        viewModelScope.launch {
+            GistUrlFetcher.refresh(sessionManager)
+            refreshAccounts()
+            refreshUnread()
+        }
     }
 
     fun refreshAccounts() {
