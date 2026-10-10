@@ -151,3 +151,75 @@ def dashboard_analytics(
                   "start": start.date().isoformat() if start else None,
                   "end": (end - timedelta(days=1)).date().isoformat() if end else None},
     }
+
+
+@router.get("/dashboard/account-comparison")
+def account_comparison(
+    db: Session = Depends(get_db),
+    accounts: list[GumroadAccount] = Depends(resolve_accounts),
+    preset: str = Query(default="month", pattern="^(today|week|month|year|all)$"),
+    start_date: str | None = Query(default=None),
+    end_date: str | None = Query(default=None),
+):
+    """Side-by-side per-account stats over the same period — no double counting.
+
+    Each account's figures come from its own Sale rows only; the "total" row is
+    the sum of the per-account rows, so combining accounts never duplicates a
+    transaction.
+    """
+    now = datetime.now(timezone.utc)
+    start: datetime | None = None
+    end: datetime | None = None
+    if start_date and end_date:
+        try:
+            start = datetime.fromisoformat(start_date).replace(tzinfo=timezone.utc)
+            end = (datetime.fromisoformat(end_date).replace(tzinfo=timezone.utc)
+                   + timedelta(days=1))
+        except ValueError:
+            start = end = None
+    if start is None:
+        if preset == "today":
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        elif preset == "week":
+            start = now - timedelta(days=7)
+        elif preset == "month":
+            start = now - timedelta(days=30)
+        elif preset == "year":
+            start = now - timedelta(days=365)
+
+    rows = []
+    for a in accounts:
+        q = select(Sale).where(Sale.account_id == a.id)
+        if start:
+            q = q.where(Sale.created_at >= start)
+        if end:
+            q = q.where(Sale.created_at < end)
+        sales = db.scalars(q).all()
+        gross = sum(s.price_cents for s in sales)
+        refunded = sum(s.price_cents for s in sales if s.refunded)
+        products = db.scalar(select(func.count(Product.id)).where(
+            Product.account_id == a.id, Product.deleted.is_(False))) or 0
+        rows.append({
+            "account_id": a.id, "label": a.label, "email": a.gumroad_email,
+            "status": a.status, "last_error": a.last_error,
+            "last_sync_at": a.last_sync_at.isoformat() if a.last_sync_at else None,
+            "gross_cents": gross, "refunded_cents": refunded,
+            "net_cents": gross - refunded,
+            "sales_count": len(sales),
+            "refunded_count": sum(1 for s in sales if s.refunded),
+            "disputed_count": sum(1 for s in sales if s.disputed),
+            "products_count": products,
+        })
+    total = {
+        "gross_cents": sum(r["gross_cents"] for r in rows),
+        "refunded_cents": sum(r["refunded_cents"] for r in rows),
+        "net_cents": sum(r["net_cents"] for r in rows),
+        "sales_count": sum(r["sales_count"] for r in rows),
+        "refunded_count": sum(r["refunded_count"] for r in rows),
+        "disputed_count": sum(r["disputed_count"] for r in rows),
+        "products_count": sum(r["products_count"] for r in rows),
+    }
+    return {"accounts": rows, "total": total,
+            "range": {"preset": preset,
+                      "start": start.date().isoformat() if start else None,
+                      "end": (end - timedelta(days=1)).date().isoformat() if end else None}}
