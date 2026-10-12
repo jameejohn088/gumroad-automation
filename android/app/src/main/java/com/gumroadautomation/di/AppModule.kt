@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import com.google.gson.Gson
 import com.gumroadautomation.data.api.AuthInterceptor
+import com.gumroadautomation.data.api.GistRefreshInterceptor
 import com.gumroadautomation.data.api.TokenAuthenticator
+import com.gumroadautomation.data.datastore.SessionManager
 import com.gumroadautomation.data.db.AppDatabase
 import dagger.Module
 import dagger.Provides
@@ -29,7 +31,7 @@ object AppModule {
     fun provideOkHttpClient(
         authInterceptor: AuthInterceptor,
         tokenAuthenticator: TokenAuthenticator,
-        gistRefreshInterceptor: GistRefreshInterceptor,
+        sessionManager: SessionManager,
     ): OkHttpClient {
         // BASIC level only, and the Authorization header is redacted: tokens and
         // request bodies (which may contain emails) are never written to logs.
@@ -45,7 +47,7 @@ object AppModule {
             // tunnel can never leave a button spinning for minutes.
             .callTimeout(60, TimeUnit.SECONDS)
             .addInterceptor(authInterceptor)
-            .addInterceptor(gistRefreshInterceptor)
+            .addInterceptor(GistRefreshInterceptor(sessionManager))
             .authenticator(tokenAuthenticator)
             .addInterceptor(logging)
             .build()

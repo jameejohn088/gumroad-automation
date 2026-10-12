@@ -7,8 +7,6 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
 import okhttp3.Response
 import java.io.IOException
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * Automatically recovers from tunnel URL rotations mid-session.
@@ -19,9 +17,10 @@ import javax.inject.Singleton
  *
  * This means Anna never sees "offline" just because the tunnel URL changed —
  * the app heals itself transparently.
+ *
+ * Provided via AppModule (not @Inject) to avoid Hilt processing issues.
  */
-@Singleton
-class GistRefreshInterceptor @Inject constructor(
+class GistRefreshInterceptor(
     private val sessionManager: SessionManager,
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
