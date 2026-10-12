@@ -57,7 +57,7 @@ data class UserDto(
     val id: String,
     val email: String,
     val name: String?,
-    @SerializedName("email_verified") val emailVerified: Boolean = false,
+    @SerializedName("is_verified") val emailVerified: Boolean = false,
     @SerializedName("created_at") val createdAt: String? = null,
 )
 
