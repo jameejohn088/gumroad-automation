@@ -11,6 +11,7 @@ import com.gumroadautomation.data.api.dto.ResetPasswordRequest
 import com.gumroadautomation.data.api.dto.SignupRequest
 import com.gumroadautomation.data.api.dto.UpdateProfileRequest
 import com.gumroadautomation.data.api.dto.UserDto
+import com.gumroadautomation.data.api.dto.RequestCodeRequest
 import com.gumroadautomation.data.api.dto.VerifyEmailRequest
 import com.gumroadautomation.data.datastore.SecureTokenStore
 import com.gumroadautomation.data.datastore.SessionManager

@@ -36,6 +36,7 @@ import com.gumroadautomation.data.api.dto.TestConnectionResponse
 import com.gumroadautomation.data.api.dto.UpdateAccountRequest
 import com.gumroadautomation.data.api.dto.UpdateProfileRequest
 import com.gumroadautomation.data.api.dto.UserDto
+import com.gumroadautomation.data.api.dto.RequestCodeRequest
 import com.gumroadautomation.data.api.dto.VerifyEmailRequest
 import retrofit2.Response
 import retrofit2.http.Body
