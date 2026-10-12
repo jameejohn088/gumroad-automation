@@ -26,7 +26,9 @@ def test_error_log_path_only_no_secrets(client, auth_headers, caplog):
     headers, _ = auth_headers()
     r = client.get("/api/v1/error-logs", headers=headers)
     assert r.status_code == 200
-    assert isinstance(r.json(), list)
+    body = r.json()
+    assert isinstance(body, dict) and "items" in body
+    assert isinstance(body["items"], list)
 
 
 def test_notifications_and_logs_endpoints(client, auth_headers):
@@ -34,9 +36,11 @@ def test_notifications_and_logs_endpoints(client, auth_headers):
     r = client.get("/api/v1/notifications", headers=headers)
     assert r.status_code == 200 and r.json() == []
     r = client.get("/api/v1/activity-logs", headers=headers)
-    assert r.status_code == 200 and isinstance(r.json(), list)
+    assert r.status_code == 200
+    body = r.json()
+    assert isinstance(body, dict) and isinstance(body.get("items"), list)
     # login was logged
-    assert any("auth.login" in e["action"] for e in r.json())
+    assert any("auth.login" in e["action"] for e in body["items"])
 
 
 def test_client_never_logs_access_token_param(caplog):

@@ -516,7 +516,7 @@ def save_smtp(body: SmtpIn, request: Request, db: Session = Depends(get_db)):
     user = auth_service.authenticate(db, body.email.strip(), body.password)
     if user is None or not user.is_active:
         raise HTTPException(status_code=401, detail="Backend email or password is incorrect.")
-    _set_env_kv({
+    _write_env_vars({
         "SMTP_HOST": "smtp.gmail.com",
         "SMTP_PORT": "587",
         "SMTP_USER": body.smtp_user.strip(),
