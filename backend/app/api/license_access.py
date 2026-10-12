@@ -451,3 +451,77 @@ document.getElementById('f').addEventListener('submit', async (e) => {
 def github_setup_page():
     """Secure HTTPS form for Anna to paste her GitHub PAT (no chat)."""
     return GITHUB_SETUP_HTML
+
+
+SMTP_SETUP_HTML = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Email Setup</title>
+<style>body{font-family:system-ui;max-width:420px;margin:2em auto;padding:0 1em}
+input{width:100%;padding:10px;margin:6px 0;box-sizing:border-box}
+button{background:#1a73e8;color:#fff;border:0;padding:12px;width:100%;font-size:16px;border-radius:6px}
+.ok{color:green}.err{color:red}</style></head><body>
+<h2>Email Setup</h2>
+<p>Enter your Gmail + App Password to enable verification codes via email.<br>
+<small>Get an App Password: Google Account → Security → 2-Step Verification → App passwords.</small></p>
+<input id="email" type="email" placeholder="Backend email">
+<input id="password" type="password" placeholder="Backend password">
+<input id="smtp_user" type="email" placeholder="Gmail address">
+<input id="smtp_pass" type="password" placeholder="Gmail App Password">
+<button id="save">Save securely</button>
+<p id="msg"></p>
+<script>
+document.getElementById('save').onclick = async () => {
+  const msg = document.getElementById('msg');
+  const body = {
+    email: document.getElementById('email').value,
+    password: document.getElementById('password').value,
+    smtp_user: document.getElementById('smtp_user').value,
+    smtp_password: document.getElementById('smtp_pass').value,
+  };
+  try {
+    const r = await fetch('/api/v1/admin/smtp', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)});
+    const j = await r.json();
+    if (r.ok) { msg.className = 'ok'; msg.textContent = 'Saved! Email verification codes will now be sent.'; }
+    else { msg.className = 'err'; msg.textContent = 'Error: ' + (j.detail || r.status); }
+  } catch (err) { msg.className = 'err'; msg.textContent = 'Network error'; }
+};
+</script></body></html>"""
+
+
+@pages_router.get("/smtp-setup", response_class=HTMLResponse)
+def smtp_setup_page():
+    """Secure HTTPS form for Anna to save Gmail SMTP credentials (no chat)."""
+    return SMTP_SETUP_HTML
+
+
+class SmtpIn(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=200)
+    smtp_user: str = Field(min_length=3, max_length=320)
+    smtp_password: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/admin/smtp")
+def save_smtp(body: SmtpIn, request: Request, db: Session = Depends(get_db)):
+    """Save Anna's Gmail SMTP credentials for sending verification codes.
+
+    Authenticated with Anna's backend email+password (never in chat).
+    The SMTP password is never logged and never returned.
+    """
+    ip = request.client.host if request.client else "unknown"
+    check_rate_limit(f"smtp:{ip}", 10, 3600)
+    user = auth_service.authenticate(db, body.email.strip(), body.password)
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=401, detail="Backend email or password is incorrect.")
+    _set_env_kv({
+        "SMTP_HOST": "smtp.gmail.com",
+        "SMTP_PORT": "587",
+        "SMTP_USER": body.smtp_user.strip(),
+        "SMTP_PASSWORD": body.smtp_password.strip(),
+        "MAIL_MODE": "smtp",
+        "MAIL_FROM": body.smtp_user.strip(),
+    })
+    return {"ok": True}
