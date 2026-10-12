@@ -29,6 +29,7 @@ object AppModule {
     fun provideOkHttpClient(
         authInterceptor: AuthInterceptor,
         tokenAuthenticator: TokenAuthenticator,
+        gistRefreshInterceptor: GistRefreshInterceptor,
     ): OkHttpClient {
         // BASIC level only, and the Authorization header is redacted: tokens and
         // request bodies (which may contain emails) are never written to logs.
@@ -41,6 +42,7 @@ object AppModule {
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
             .addInterceptor(authInterceptor)
+            .addInterceptor(gistRefreshInterceptor)
             .authenticator(tokenAuthenticator)
             .addInterceptor(logging)
             .build()
