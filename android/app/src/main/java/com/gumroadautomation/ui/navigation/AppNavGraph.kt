@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.gumroadautomation.ui.screens.accounts.AccountsScreen
 import com.gumroadautomation.ui.screens.auth.ForgotPasswordScreen
+import com.gumroadautomation.ui.screens.auth.VerifyEmailScreen
 import com.gumroadautomation.ui.screens.auth.LoginScreen
 import com.gumroadautomation.ui.screens.auth.ResetPasswordScreen
 import com.gumroadautomation.ui.screens.auth.SignupScreen
@@ -80,6 +81,7 @@ fun AppNavGraph() {
                 },
                 onNavigateToSignup = { navController.navigate(Routes.SIGNUP) },
                 onNavigateToForgot = { navController.navigate(Routes.FORGOT_PASSWORD) },
+                onNavigateToVerify = { navController.navigate(Routes.VERIFY_EMAIL_CODE) },
             )
         }
         composable(Routes.SIGNUP) {
@@ -90,6 +92,12 @@ fun AppNavGraph() {
         }
         composable(Routes.FORGOT_PASSWORD) {
             ForgotPasswordScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.VERIFY_EMAIL_CODE) {
+            VerifyEmailScreen(
+                onBack = { navController.popBackStack() },
+                onVerified = { navController.navigate(Routes.LOGIN) { popUpTo(0) } },
+            )
         }
         composable(
             route = Routes.RESET_PASSWORD,

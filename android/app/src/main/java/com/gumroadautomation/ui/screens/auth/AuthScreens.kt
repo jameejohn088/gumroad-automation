@@ -20,6 +20,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -101,6 +106,7 @@ fun LoginScreen(
     onLoggedIn: () -> Unit,
     onNavigateToSignup: () -> Unit,
     onNavigateToForgot: () -> Unit,
+    onNavigateToVerify: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel(),
 ) {
     val email by viewModel.email.collectAsState()
@@ -126,6 +132,7 @@ fun LoginScreen(
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Log in") }
         TextButton(onClick = onNavigateToForgot) { Text("Forgot password?") }
+        TextButton(onClick = onNavigateToVerify) { Text("Verify email with code") }
         TextButton(onClick = onNavigateToSignup) { Text("Don't have an account? Sign up") }
     }
 }
@@ -193,6 +200,58 @@ fun ForgotPasswordScreen(
             enabled = !busy,
             modifier = Modifier.fillMaxWidth(),
         ) { Text("Send reset link") }
+        TextButton(onClick = onBack) { Text("Back to login") }
+    }
+}
+
+@Composable
+fun VerifyEmailScreen(
+    onBack: () -> Unit,
+    onVerified: () -> Unit,
+    viewModel: AuthViewModel = hiltViewModel(),
+) {
+    val email by viewModel.email.collectAsState()
+    val busy by viewModel.busy.collectAsState()
+    val error by viewModel.error.collectAsState()
+    val info by viewModel.info.collectAsState()
+    var code by remember { mutableStateOf("") }
+    var codeSent by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) { viewModel.clearMessages() }
+
+    AuthScaffold(
+        title = "Verify email",
+        subtitle = "We'll send a 6-digit code to your email",
+        error = error, info = info, busy = busy,
+    ) {
+        EmailField(value = email, onValueChange = { viewModel.email.value = it }, error = null)
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = {
+                viewModel.requestVerificationCode()
+                codeSent = true
+            },
+            enabled = !busy && email.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text(if (codeSent) "Resend code" else "Send code") }
+
+        if (codeSent) {
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = code,
+                onValueChange = { if (it.length <= 6 && it.all { c -> c.isDigit() }) code = it },
+                label = { Text("6-digit code") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = { viewModel.verifyEmailCode(code, onVerified) },
+                enabled = !busy && code.length == 6,
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Verify") }
+        }
         TextButton(onClick = onBack) { Text("Back to login") }
     }
 }

@@ -74,6 +74,9 @@ interface ApiService {
     @POST("auth/verify-email")
     suspend fun verifyEmail(@Body body: VerifyEmailRequest): Response<MessageResponse>
 
+    @POST("auth/verify-email/request-code")
+    suspend fun requestVerificationCode(@Body body: RequestCodeRequest): Response<MessageResponse>
+
     @GET("auth/me")
     suspend fun me(): Response<UserDto>
 

@@ -32,7 +32,13 @@ data class ResetPasswordRequest(
     @SerializedName("new_password") val newPassword: String,
 )
 
-data class VerifyEmailRequest(val token: String)
+data class VerifyEmailRequest(
+    val token: String? = null,
+    val email: String? = null,
+    val code: String? = null,
+)
+
+data class RequestCodeRequest(val email: String)
 
 data class ChangePasswordRequest(
     @SerializedName("current_password") val currentPassword: String,

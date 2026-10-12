@@ -125,8 +125,35 @@ class AuthRepository @Inject constructor(
     fun verifyEmail(token: String): Flow<ApiResult<String>> = flow {
         emit(ApiResult.Loading)
         try {
-            val res = apiProvider.service().verifyEmail(VerifyEmailRequest(token.trim()))
+            val res = apiProvider.service().verifyEmail(VerifyEmailRequest(token = token.trim()))
             if (res.isSuccessful) emit(ApiResult.Success(res.body()?.message.orEmpty()))
+            else emit(ApiResult.Error(parseError(res)))
+        } catch (e: IOException) {
+            emit(ApiResult.Error(networkError(e)))
+        } catch (_: Exception) {
+            emit(ApiResult.Error("Verification failed. Please try again."))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    fun requestVerificationCode(email: String): Flow<ApiResult<String>> = flow {
+        emit(ApiResult.Loading)
+        try {
+            val res = apiProvider.service().requestVerificationCode(RequestCodeRequest(email.trim()))
+            if (res.isSuccessful) emit(ApiResult.Success("Code sent! Check your email."))
+            else emit(ApiResult.Error(parseError(res)))
+        } catch (e: IOException) {
+            emit(ApiResult.Error(networkError(e)))
+        } catch (_: Exception) {
+            emit(ApiResult.Error("Could not send code. Please try again."))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    fun verifyEmailCode(email: String, code: String): Flow<ApiResult<String>> = flow {
+        emit(ApiResult.Loading)
+        try {
+            val res = apiProvider.service().verifyEmail(
+                VerifyEmailRequest(email = email.trim(), code = code.trim()))
+            if (res.isSuccessful) emit(ApiResult.Success("Email verified!"))
             else emit(ApiResult.Error(parseError(res)))
         } catch (e: IOException) {
             emit(ApiResult.Error(networkError(e)))

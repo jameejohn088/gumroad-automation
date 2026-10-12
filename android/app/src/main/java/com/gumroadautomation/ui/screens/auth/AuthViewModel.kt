@@ -232,5 +232,47 @@ class AuthViewModel @Inject constructor(
             }
         }
     }
+
+    fun requestVerificationCode() {
+        viewModelScope.launch {
+            _busy.value = true
+            _error.value = null
+            _info.value = null
+            authRepository.requestVerificationCode(email.value).collect { result ->
+                when (result) {
+                    is ApiResult.Loading -> Unit
+                    is ApiResult.Success -> {
+                        _busy.value = false
+                        _info.value = result.data
+                    }
+                    is ApiResult.Error -> {
+                        _busy.value = false
+                        _error.value = result.message
+                    }
+                }
+            }
+        }
+    }
+
+    fun verifyEmailCode(code: String, onVerified: () -> Unit) {
+        viewModelScope.launch {
+            _busy.value = true
+            _error.value = null
+            authRepository.verifyEmailCode(email.value, code).collect { result ->
+                when (result) {
+                    is ApiResult.Loading -> Unit
+                    is ApiResult.Success -> {
+                        _busy.value = false
+                        _info.value = result.data
+                        onVerified()
+                    }
+                    is ApiResult.Error -> {
+                        _busy.value = false
+                        _error.value = result.message
+                    }
+                }
+            }
+        }
+    }
 }
 
