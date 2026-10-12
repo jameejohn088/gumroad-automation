@@ -38,9 +38,12 @@ object AppModule {
             redactHeader("Authorization")
         }
         return OkHttpClient.Builder()
-            .connectTimeout(20, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            // Total cap for a call including interceptor retries, so a dead
+            // tunnel can never leave a button spinning for minutes.
+            .callTimeout(60, TimeUnit.SECONDS)
             .addInterceptor(authInterceptor)
             .addInterceptor(gistRefreshInterceptor)
             .authenticator(tokenAuthenticator)

@@ -51,8 +51,17 @@ class TokenAuthenticator @Inject constructor(
         val refreshToken = tokenStore.getRefreshToken() ?: return null
         return try {
             val baseUrl = sessionManager.baseUrl.first()
+            // Explicit timeouts: this runs inside runBlocking on an OkHttp
+            // thread, so a hung refresh must never block it indefinitely.
+            val refreshClient = okhttp3.OkHttpClient.Builder()
+                .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                .callTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
             val retrofit = Retrofit.Builder()
                 .baseUrl(baseUrl.trimEnd('/') + "/")
+                .client(refreshClient)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
             val api = retrofit.create(ApiService::class.java)

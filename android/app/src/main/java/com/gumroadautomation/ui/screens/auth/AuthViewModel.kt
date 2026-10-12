@@ -167,14 +167,18 @@ class AuthViewModel @Inject constructor(
             _error.value = null
             // Response is generic by design (no user enumeration).
             authRepository.forgotPassword(email.value).collect { result ->
-                _busy.value = false
                 when (result) {
                     is ApiResult.Loading -> Unit
-                    is ApiResult.Success ->
+                    is ApiResult.Success -> {
+                        _busy.value = false
                         _info.value = result.data.ifEmpty {
                             "If an account exists for this email, a reset link was sent."
                         }
-                    is ApiResult.Error -> _error.value = result.message
+                    }
+                    is ApiResult.Error -> {
+                        _busy.value = false
+                        _error.value = result.message
+                    }
                 }
             }
         }
@@ -192,11 +196,16 @@ class AuthViewModel @Inject constructor(
             _busy.value = true
             _error.value = null
             authRepository.resetPassword(token, newPassword.value).collect { result ->
-                _busy.value = false
                 when (result) {
                     is ApiResult.Loading -> Unit
-                    is ApiResult.Success -> onSuccess()
-                    is ApiResult.Error -> _error.value = result.message
+                    is ApiResult.Success -> {
+                        _busy.value = false
+                        onSuccess()
+                    }
+                    is ApiResult.Error -> {
+                        _busy.value = false
+                        _error.value = result.message
+                    }
                 }
             }
         }
@@ -207,13 +216,18 @@ class AuthViewModel @Inject constructor(
             _busy.value = true
             _error.value = null
             authRepository.verifyEmail(token).collect { result ->
-                _busy.value = false
                 when (result) {
                     is ApiResult.Loading -> Unit
-                    is ApiResult.Success -> _info.value = result.data.ifEmpty {
-                        "Email verified. You can log in now."
+                    is ApiResult.Success -> {
+                        _busy.value = false
+                        _info.value = result.data.ifEmpty {
+                            "Email verified. You can log in now."
+                        }
                     }
-                    is ApiResult.Error -> _error.value = result.message
+                    is ApiResult.Error -> {
+                        _busy.value = false
+                        _error.value = result.message
+                    }
                 }
             }
         }
