@@ -121,6 +121,25 @@ class EmailVerificationToken(Base, CreatedMixin):
     used_at: Mapped[datetime | None] = mapped_column(DT, nullable=True)
 
 
+class EmailVerificationCode(Base, CreatedMixin):
+    """Short 6-digit numeric codes for email verification (10-min expiry).
+
+    Only the SHA-256 hash is stored. Previous unused codes are invalidated
+    when a new one is issued; attempts are capped to slow brute force.
+    """
+    __tablename__ = "email_verification_codes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    code_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DT, nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DT, nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+
 # ------------------------------------------------------- gumroad ----------
 
 class GumroadAccount(Base, TimestampMixin):

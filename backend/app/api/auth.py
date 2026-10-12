@@ -11,6 +11,7 @@ from app.schemas.schemas import (
     LoginIn,
     MeUpdateIn,
     RefreshIn,
+    RequestVerificationCodeIn,
     ResetPasswordIn,
     SignupIn,
     TokenPair,
@@ -96,10 +97,33 @@ def reset_password(body: ResetPasswordIn, request: Request, db: Session = Depend
 
 @router.post("/verify-email")
 def verify_email(body: VerifyEmailIn, db: Session = Depends(get_db)):
-    ok = auth_service.verify_email(db, body.token)
-    if not ok:
-        raise HTTPException(status_code=400, detail="Invalid or expired verification token")
-    return {"ok": True}
+    if body.token:
+        ok = auth_service.verify_email(db, body.token)
+        if not ok:
+            raise HTTPException(status_code=400, detail="Invalid or expired verification token")
+        return {"ok": True}
+    if body.email and body.code:
+        ok = auth_service.verify_email_code(db, body.email, body.code)
+        if not ok:
+            raise HTTPException(status_code=400, detail="Invalid or expired verification code")
+        return {"ok": True}
+    raise HTTPException(
+        status_code=422,
+        detail="Provide either 'token' or both 'email' and 'code'.",
+    )
+
+
+@router.post("/verify-email/request-code")
+def request_verification_code(body: RequestVerificationCodeIn, request: Request,
+                              db: Session = Depends(get_db)):
+    ip = request.client.host if request.client else "unknown"
+    email = body.email.lower().strip()
+    # Max 3 code requests per 10 minutes per email (plus per-IP guard).
+    check_rate_limit(f"verifycode:{email}", limit=3, window_seconds=600)
+    check_rate_limit(f"verifycode:ip:{ip}", limit=10, window_seconds=600)
+    auth_service.request_verification_code(db, email)
+    # Generic: never reveal whether the account exists.
+    return {"ok": True, "message": auth_service.GENERIC_CODE_MESSAGE}
 
 
 @router.get("/me", response_model=UserOut)

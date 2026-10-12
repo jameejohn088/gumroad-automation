@@ -48,6 +48,15 @@ def verification_email_body(token: str) -> str:
     )
 
 
+def verification_code_email_body(code: str) -> str:
+    return (
+        "Your email verification code (expires in 10 minutes):\n\n"
+        f"{code}\n\n"
+        "Enter this 6-digit code in the app's Verify Email screen.\n"
+        "If you did not request this, ignore this message."
+    )
+
+
 def password_reset_email_body(token: str) -> str:
     return (
         "Reset your password with this token (single-use, expires in 1 hour):\n\n"

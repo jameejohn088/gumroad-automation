@@ -127,6 +127,108 @@ def test_verify_email(client, db, user_factory, monkeypatch):
     assert user.is_verified is True
 
 
+    db.refresh(user)
+    assert user.is_verified is True
+
+
+def test_verification_code_generation(client, db, user_factory, monkeypatch):
+    """request-code creates a hashed 6-digit code with 10-min expiry."""
+    captured = {}
+    monkeypatch.setattr("app.services.auth_service.mailer.send_email",
+                        lambda to, subj, body: captured.update({"body": body}) or True)
+    user, _ = user_factory(email="codegen@example.com", verified=False)
+    r = client.post("/api/v1/auth/verify-email/request-code",
+                    json={"email": "codegen@example.com"})
+    assert r.status_code == 200, r.text
+    assert r.json()["ok"] is True
+    # Code appears in the email body (console mode).
+    import re
+    m = re.search(r"(\d{6})", captured["body"])
+    assert m, f"no 6-digit code in email body: {captured['body'][:200]}"
+    code = m.group(1)
+    # Stored only as a hash, ~10 min expiry.
+    from datetime import timedelta
+    from app.core.security import hash_token, utcnow
+    from app.models.models import EmailVerificationCode
+    rec = db.scalar(__import__("sqlalchemy").select(EmailVerificationCode).where(
+        EmailVerificationCode.user_id == user.id))
+    assert rec is not None
+    assert rec.code_hash == hash_token(code)
+    assert rec.code_hash != code  # never plaintext
+    assert timedelta(minutes=9) < (rec.expires_at - utcnow()) <= timedelta(minutes=10)
+    assert user.is_verified is False  # not verified yet
+
+
+def test_verification_code_success(client, db, user_factory, monkeypatch):
+    monkeypatch.setattr("app.services.auth_service.mailer.send_email",
+                        lambda to, subj, body: True)
+    user, _ = user_factory(email="codeok@example.com", verified=False)
+    from app.services import auth_service
+    code = auth_service.request_verification_code(db, "codeok@example.com")
+    assert code and len(code) == 6 and code.isdigit()
+    r = client.post("/api/v1/auth/verify-email",
+                    json={"email": "codeok@example.com", "code": code})
+    assert r.status_code == 200, r.text
+    db.refresh(user)
+    assert user.is_verified is True
+
+
+def test_verification_code_wrong_fails(client, user_factory, monkeypatch):
+    monkeypatch.setattr("app.services.auth_service.mailer.send_email",
+                        lambda to, subj, body: True)
+    user, _ = user_factory(email="codebad@example.com", verified=False)
+    r = client.post("/api/v1/auth/verify-email",
+                    json={"email": "codebad@example.com", "code": "000000"})
+    assert r.status_code == 400
+    assert user.is_verified is False
+
+
+def test_verification_code_expired_fails(client, db, user_factory, monkeypatch):
+    monkeypatch.setattr("app.services.auth_service.mailer.send_email",
+                        lambda to, subj, body: True)
+    user, _ = user_factory(email="codeexp@example.com", verified=False)
+    from datetime import timedelta
+    from app.core.security import hash_token, utcnow
+    from app.models.models import EmailVerificationCode
+    db.add(EmailVerificationCode(user_id=user.id, code_hash=hash_token("123456"),
+                                 expires_at=utcnow() - timedelta(minutes=1)))
+    db.commit()
+    r = client.post("/api/v1/auth/verify-email",
+                    json={"email": "codeexp@example.com", "code": "123456"})
+    assert r.status_code == 400
+    assert user.is_verified is False
+
+
+def test_verification_code_rate_limited(client, user_factory, monkeypatch):
+    monkeypatch.setattr("app.services.auth_service.mailer.send_email",
+                        lambda to, subj, body: True)
+    user_factory(email="codelimit@example.com", verified=False)
+    for _ in range(3):
+        r = client.post("/api/v1/auth/verify-email/request-code",
+                        json={"email": "codelimit@example.com"})
+        assert r.status_code == 200, r.text
+    r = client.post("/api/v1/auth/verify-email/request-code",
+                    json={"email": "codelimit@example.com"})
+    assert r.status_code == 429, r.text
+
+
+def test_verification_code_replaces_old(client, db, user_factory, monkeypatch):
+    """A new request invalidates the previous code."""
+    monkeypatch.setattr("app.services.auth_service.mailer.send_email",
+                        lambda to, subj, body: True)
+    user, _ = user_factory(email="coderep@example.com", verified=False)
+    from app.services import auth_service
+    code1 = auth_service.request_verification_code(db, "coderep@example.com")
+    code2 = auth_service.request_verification_code(db, "coderep@example.com")
+    assert code1 != code2
+    r = client.post("/api/v1/auth/verify-email",
+                    json={"email": "coderep@example.com", "code": code1})
+    assert r.status_code == 400  # old code no longer valid
+    r = client.post("/api/v1/auth/verify-email",
+                    json={"email": "coderep@example.com", "code": code2})
+    assert r.status_code == 200
+
+
 def test_me_and_change_password(client, auth_headers):
     headers, user = auth_headers()
     r = client.get("/api/v1/auth/me", headers=headers)

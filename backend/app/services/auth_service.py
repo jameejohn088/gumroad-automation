@@ -7,6 +7,7 @@ Security rules:
 - rate limiting + lockout on login and reset endpoints (enforced in routers)
 - opaque refresh/reset tokens stored as SHA-256 hashes, single-use
 """
+import secrets
 from datetime import timedelta
 
 from sqlalchemy import select
@@ -22,6 +23,7 @@ from app.core.security import (
     verify_password,
 )
 from app.models.models import (
+    EmailVerificationCode,
     EmailVerificationToken,
     PasswordResetToken,
     RefreshToken,
@@ -30,6 +32,10 @@ from app.models.models import (
 
 GENERIC_LOGIN_ERROR = "Invalid email or password."
 GENERIC_FORGOT_MESSAGE = "If an account exists for that email, a reset link was sent."
+GENERIC_CODE_MESSAGE = "If an account exists for that email, a verification code was sent."
+
+CODE_TTL_MINUTES = 10
+CODE_MAX_ATTEMPTS = 5
 
 
 def get_user_by_email(db: Session, email: str) -> User | None:
@@ -172,6 +178,72 @@ def verify_email(db: Session, token: str) -> bool:
         return False
     user = db.get(User, rec.user_id)
     if not user:
+        return False
+    user.is_verified = True
+    rec.used_at = utcnow()
+    db.commit()
+    return True
+
+
+def _new_code() -> str:
+    """Cryptographically random 6-digit code (100000–999999, never 0-padded short)."""
+    return f"{secrets.randbelow(900000) + 100000:06d}"
+
+
+def request_verification_code(db: Session, email: str) -> str | None:
+    """Issue a 6-digit email verification code.
+
+    Invalidates any previous unused codes for the user. Sends the code via the
+    configured mailer. Returns the plain code (for tests/logging only — the
+    router never exposes it in a response). Returns None when no usable account
+    exists (caller must still answer generically: no user enumeration).
+    """
+    user = get_user_by_email(db, email)
+    if not user or not user.is_active or user.is_verified:
+        return None
+    now = utcnow()
+    # Invalidate older unused codes so only the newest is valid.
+    for old in db.scalars(select(EmailVerificationCode).where(
+        EmailVerificationCode.user_id == user.id,
+        EmailVerificationCode.used_at.is_(None),
+    )):
+        old.used_at = now
+    code = _new_code()
+    db.add(EmailVerificationCode(
+        user_id=user.id,
+        code_hash=hash_token(code),
+        expires_at=now + timedelta(minutes=CODE_TTL_MINUTES),
+    ))
+    db.commit()
+    mailer.send_email(email, "Your email verification code",
+                      mailer.verification_code_email_body(code))
+    return code
+
+
+def verify_email_code(db: Session, email: str, code: str) -> bool:
+    """Verify a 6-digit code. Returns True on success (user marked verified)."""
+    user = get_user_by_email(db, email)
+    if not user or not user.is_active:
+        return False
+    code = (code or "").strip()
+    if not code:
+        return False
+    rec = db.scalar(
+        select(EmailVerificationCode)
+        .where(EmailVerificationCode.user_id == user.id,
+               EmailVerificationCode.used_at.is_(None))
+        .order_by(EmailVerificationCode.created_at.desc())
+    )
+    if not rec or rec.expires_at < utcnow():
+        return False
+    if rec.attempts >= CODE_MAX_ATTEMPTS:
+        rec.used_at = utcnow()  # burn the code after too many guesses
+        db.commit()
+        return False
+    # Constant-time compare on the hashes.
+    if not secrets.compare_digest(rec.code_hash, hash_token(code)):
+        rec.attempts += 1
+        db.commit()
         return False
     user.is_verified = True
     rec.used_at = utcnow()

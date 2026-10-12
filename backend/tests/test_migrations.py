@@ -28,7 +28,7 @@ def test_alembic_upgrade_head_fresh_db(tmp_path, monkeypatch):
         "automation_rules", "automation_conditions", "automation_actions",
         "automation_executions", "scheduled_jobs", "job_executions",
         "sync_history", "notifications", "activity_logs", "error_logs",
-        "app_settings", "alembic_version",
+        "app_settings", "email_verification_codes", "alembic_version",
     }
     missing = expected - tables
     assert not missing, f"missing tables: {missing}"

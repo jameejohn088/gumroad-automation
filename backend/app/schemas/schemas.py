@@ -39,7 +39,14 @@ class ResetPasswordIn(BaseModel):
 
 
 class VerifyEmailIn(BaseModel):
-    token: str
+    # Either the legacy long token OR the (email, code) pair for 6-digit codes.
+    token: str | None = None
+    email: str | None = None
+    code: str | None = None
+
+
+class RequestVerificationCodeIn(BaseModel):
+    email: EmailStr
 
 
 class ChangePasswordIn(BaseModel):
